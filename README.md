@@ -2,9 +2,12 @@
 
 Professional ID Card Creation & Verification Platform — multi-organization, mobile-first, secure by design.
 
-Status: **Phase 1 (Foundation)** complete. See `docs/ARCHITECTURE.md` for the full plan.
+Status: **Phase 1 (Foundation)** and **Phase 2 (accounts, organizations, members)** complete. See `docs/ARCHITECTURE.md` for the full plan.
 
 ## What exists now
+
+- Sign-up / sign-in / password reset, organization onboarding, mobile-first dashboard
+- Member management (search, add, edit, archive) with per-organization custom fields
 
 - Database schema, RLS policies, storage buckets and the public verification RPC (`supabase/migrations/`)
 - Next.js (App Router) app with Supabase clients, session proxy and the public `/verify/[credential]` page

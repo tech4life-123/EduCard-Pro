@@ -2,8 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Refreshes the Supabase auth session cookie on each request. This is session upkeep only —
- * it is NOT an authorization boundary. Authorization is enforced by RLS and server-side checks.
+ * Refreshes the Supabase auth session cookie and does an optimistic redirect for signed-out
+ * visitors. It is NOT the authorization boundary: every page and Server Action re-checks the
+ * user server-side, and RLS enforces tenant isolation in the database.
  * Public routes (/verify/*) skip it so verification stays fast and cookie-free.
  */
 export async function proxy(request: NextRequest) {
@@ -24,7 +25,24 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  await supabase.auth.getUser();
+  const { data } = await supabase.auth.getUser();
+  const { pathname, search } = request.nextUrl;
+
+  const redirectTo = (url: URL) => {
+    const redirect = NextResponse.redirect(url);
+    // Keep any refreshed session cookies on the redirect response.
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
+  };
+
+  if (!data.user && (pathname === "/app" || pathname.startsWith("/app/"))) {
+    const url = new URL("/login", request.url);
+    url.searchParams.set("next", pathname + search);
+    return redirectTo(url);
+  }
+  if (data.user && (pathname === "/login" || pathname === "/signup")) {
+    return redirectTo(new URL("/app", request.url));
+  }
   return response;
 }
 
