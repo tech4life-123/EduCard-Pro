@@ -10,6 +10,7 @@ import { changeCardStatus, regenerateQr } from "@/app/actions/cards";
 import { loadBranding, memberCardValues, TEMPLATE_COLUMNS } from "@/lib/templates/data";
 import type { TemplateRow } from "@/lib/templates/schema";
 import { IssuePanel } from "../issue-panel";
+import { PrintForm } from "@/components/print-form";
 
 export const metadata = { title: "Card · EduCard Pro" };
 
@@ -67,6 +68,13 @@ export default async function CardPage({ params }: PageProps<"/app/cards/[id]">)
             photoUrl={photo}
             brand={brand}
           />
+        </section>
+      ) : null}
+
+      {isAdmin && live ? (
+        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="font-semibold">Print</h2>
+          <PrintForm cardId={card.id} />
         </section>
       ) : null}
 

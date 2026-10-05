@@ -5,6 +5,7 @@ import { hasRole, requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { Issue } from "@/lib/batch-import";
 import { BatchRunner } from "./batch-runner";
+import { PrintForm } from "@/components/print-form";
 
 export const metadata = { title: "Batch · EduCard Pro" };
 
@@ -68,6 +69,13 @@ export default async function BatchPage({ params }: PageProps<"/app/batches/[id]
           <BatchRunner batchId={id} step="cards" label="Issue cards" pending={needCards} disabled={isAdmin ? undefined : "Only admins can issue cards."} />
         </div>
       </section>
+
+      {isAdmin && cards > 0 ? (
+        <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="font-semibold">3. Print</h2>
+          <PrintForm batchId={id} parts={Math.ceil(cards / 50)} />
+        </section>
+      ) : null}
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
         <ul className="divide-y divide-slate-200">
