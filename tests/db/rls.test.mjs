@@ -183,5 +183,22 @@ denied("admin cannot create a template in another org", await as("authenticated"
   "insert into public.card_templates (organization_id, slug, name, category) values ($1,'evil','Evil','school')", [orgB]));
 ok("B cannot see A's org template", (await as("authenticated", B, "select count(*)::int n from public.card_templates where slug='mine'")).rows[0].n === 0);
 
+// ---- cards & credentials (Phase 5) ------------------------------------------------
+denied("staff cannot insert an active card", await as("authenticated", C,
+  "insert into public.id_cards (organization_id, member_id, card_number, status) values ($1,$2,'ALPHA-S1','active')", [orgA, memA]));
+allowed("admin issues an active card", await as("authenticated", A,
+  "insert into public.id_cards (organization_id, member_id, card_number, status, issue_date, expiry_date) values ($1,$2,public.next_card_number($1),'active',current_date,current_date+365)", [orgA, memA]));
+const cardA = (await db.query("select id from public.id_cards where organization_id=$1 limit 1", [orgA])).rows[0]?.id;
+allowed("admin stores a credential hash", await as("authenticated", A,
+  "insert into public.verification_credentials (organization_id, card_id, credential_hash) values ($1,$2,$3)", [orgA, cardA, "a".repeat(64)]));
+denied("credential must be a 64-char hex hash", await as("authenticated", A,
+  "insert into public.verification_credentials (organization_id, card_id, credential_hash) values ($1,$2,'plaintext-token')", [orgA, cardA]));
+ok("staff cannot read credential hashes", (await as("authenticated", C, "select count(*)::int n from public.verification_credentials")).rows[0].n === 0);
+ok("B cannot read A's cards", (await as("authenticated", B, "select count(*)::int n from public.id_cards")).rows[0].n === 0);
+denied("B cannot issue a card for A's member", await as("authenticated", B,
+  "insert into public.id_cards (organization_id, member_id, card_number, status) values ($1,$2,'BETA-X','active')", [orgB, memA]));
+ok("staff cannot suspend a card", (await as("authenticated", C, "update public.id_cards set status='suspended' where id=$1 returning id", [cardA])).error !== undefined);
+ok("status history recorded issuance", (await db.query("select count(*)::int n from public.card_status_history where card_id=$1", [cardA])).rows[0].n === 1);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

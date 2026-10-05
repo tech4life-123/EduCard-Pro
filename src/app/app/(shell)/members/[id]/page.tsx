@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import * as z from "zod";
-import { requireOrg } from "@/lib/auth";
+import { hasRole, requireOrg } from "@/lib/auth";
+import { issueCard } from "@/app/actions/cards";
+import { IssuePanel } from "../../cards/issue-panel";
 import { createClient } from "@/lib/supabase/server";
 import { setMemberStatus } from "@/app/actions/members";
 import { secondaryButtonClass } from "@/components/form";
@@ -20,7 +22,7 @@ export default async function EditMemberPage({ params, searchParams }: PageProps
   const sp = await searchParams;
   if (!z.uuid().safeParse(id).success) notFound();
 
-  const { org } = await requireOrg();
+  const { org, role } = await requireOrg();
   const supabase = await createClient();
   const [{ data: member }, { data: defs }] = await Promise.all([
     supabase.from("members").select("*").eq("id", id).eq("organization_id", org.id).maybeSingle(),
@@ -40,6 +42,13 @@ export default async function EditMemberPage({ params, searchParams }: PageProps
     template = (t as unknown as TemplateRow) ?? null;
   }
   const brand = await loadBranding(org.id);
+  const { data: cards } = await supabase
+    .from("id_cards")
+    .select("id, card_number, status, expiry_date")
+    .eq("member_id", member.id)
+    .eq("organization_id", org.id)
+    .order("created_at", { ascending: false });
+  const hasLive = (cards ?? []).some((c) => c.status === "active" || c.status === "suspended");
   const archive = setMemberStatus.bind(null, member.id, "archived");
   const restore = setMemberStatus.bind(null, member.id, "active");
 
@@ -81,6 +90,31 @@ export default async function EditMemberPage({ params, searchParams }: PageProps
             No default template yet. <Link href="/app/templates" className="underline">Choose one</Link> to see this member&apos;s card.
           </p>
         )}
+        {template && hasRole(role, "org_admin") && member.status === "active" ? (
+          <div className="border-t border-slate-200 pt-3">
+            <IssuePanel
+              action={issueCard.bind(null, member.id)}
+              label={hasLive ? "Issue replacement card" : "Issue ID card"}
+              warning={hasLive ? "The current card will be marked replaced and stop verifying." : "Creates the card number and a secure QR code."}
+              template={template}
+              values={memberCardValues(member as Record<string, unknown>, brand)}
+              photoUrl={photoUrl}
+              brand={brand}
+            />
+          </div>
+        ) : null}
+        {(cards ?? []).length > 0 ? (
+          <ul className="space-y-1 border-t border-slate-200 pt-3 text-sm">
+            {(cards ?? []).map((c) => (
+              <li key={c.id}>
+                <Link href={`/app/cards/${c.id}`} className="underline">
+                  {c.card_number}
+                </Link>{" "}
+                <span className="capitalize text-slate-600">· {c.status}</span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
       <MemberForm
         id={member.id}

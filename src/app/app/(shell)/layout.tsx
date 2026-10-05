@@ -10,6 +10,7 @@ export default async function ShellLayout({ children }: LayoutProps<"/app">) {
   const links = [
     { href: "/app", label: "Dashboard" },
     { href: "/app/members", label: "Members" },
+    { href: "/app/cards", label: "Cards" },
     { href: "/app/templates", label: "Templates" },
     ...(hasRole(role, "org_admin")
       ? [
@@ -51,7 +52,7 @@ export default async function ShellLayout({ children }: LayoutProps<"/app">) {
         aria-label="Main"
       >
         {links.map((l) => (
-          <Link key={l.href} href={l.href} className="py-3.5 text-center text-sm font-medium text-slate-700 active:bg-slate-100">
+          <Link key={l.href} href={l.href} className="truncate px-0.5 py-3.5 text-center text-xs font-medium text-slate-700 active:bg-slate-100">
             {l.label}
           </Link>
         ))}
