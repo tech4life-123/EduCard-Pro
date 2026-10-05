@@ -17,7 +17,9 @@ export function isWellFormedToken(token: string): boolean {
 }
 
 export function verifyUrl(token: string): string {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "").replace(/\/$/, "");
+  // Printed QR codes must hold an absolute link. Prefer the configured site URL, then Vercel's production domain.
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "";
+  const base = (process.env.NEXT_PUBLIC_SITE_URL || vercel || "").replace(/\/$/, "");
   return `${base}/verify/${token}`;
 }
 

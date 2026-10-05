@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { signedPhotoUrls } from "@/lib/photos";
 import { CardSide } from "@/components/card-svg";
 import { buttonClass } from "@/components/form";
-import { setDefaultTemplate } from "@/app/actions/templates";
+import { addTemplateFields, setDefaultTemplate } from "@/app/actions/templates";
 import { loadBranding, loadDefaultTemplateId, memberCardValues, SAMPLE_VALUES, TEMPLATE_COLUMNS } from "@/lib/templates/data";
 import { customKeysUsed, type TemplateRow } from "@/lib/templates/schema";
 import { CustomizeForm } from "./customize-form";
@@ -65,10 +65,19 @@ export default async function TemplatePage({ params, searchParams }: PageProps<"
       </div>
 
       {missing.length > 0 ? (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          This design shows custom fields you have not created yet: <span className="font-mono">{missing.join(", ")}</span>. Add them under{" "}
-          <Link href="/app/settings/fields" className="underline">Fields</Link> using exactly these keys (for example a field labelled &ldquo;{missing[0].replace(/_/g, " ")}&rdquo;), or pick another design.
-        </p>
+        <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <p>
+            This design shows custom fields that are not set up yet: <span className="font-mono">{missing.join(", ")}</span>.
+          </p>
+          {isAdmin ? (
+            <form action={addTemplateFields.bind(null, t.id)} className="mt-2">
+              <button type="submit" className={buttonClass}>Add these fields</button>
+              <span className="ml-2 text-xs">They are also added automatically when you use or customize this design.</span>
+            </form>
+          ) : (
+            <p className="mt-1">Ask an administrator to add them under Fields.</p>
+          )}
+        </div>
       ) : null}
 
       <form method="get" className="flex flex-wrap items-end gap-2">

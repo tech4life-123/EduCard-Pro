@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { hasRole, requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { deleteCustomField } from "@/app/actions/fields";
+import { addAllTemplateFields } from "@/app/actions/templates";
 import { secondaryButtonClass } from "@/components/form";
 import type { CustomFieldDef } from "@/lib/member-fields";
 import { FieldForm } from "./field-form";
@@ -65,6 +66,16 @@ export default async function FieldsPage() {
       <p className="text-xs text-slate-500">
         Removing a field hides it from forms. Values already saved on members are kept in their records.
       </p>
+
+      <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="mb-1 font-semibold">Fields used by templates</h2>
+        <p className="mb-3 text-sm text-slate-600">
+          Some designs (for example the community cards) print extra details such as Block, House No and House Code. Add them all at once.
+        </p>
+        <form action={addAllTemplateFields}>
+          <button type="submit" className={secondaryButtonClass}>Add all template fields</button>
+        </form>
+      </section>
 
       <section className="rounded-xl border border-slate-200 bg-white p-5">
         <h2 className="mb-4 font-semibold">Add a field</h2>

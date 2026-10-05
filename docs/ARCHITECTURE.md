@@ -87,4 +87,4 @@ Printer-independent output: PDF at true CR80 (85.60 × 53.98 mm) or custom size,
 
 - Face detection uses the browser `FaceDetector` where available with a lightweight fallback; basic capture never depends on it.
 - Offline capture is deferred; if added, local records will be clearly marked unsynced.
-- Supabase project: `https://swfrpywkjqnmrqozdtbo.supabase.co`. It was not reachable through the Claude Supabase connector (different account), so migrations are authored locally and must be applied by CLI or after the connector is re-linked.
+- Supabase project: `https://swfrpywkjqnmrqozdtbo.supabase.co`. Migrations 1–9 are applied. See `docs/HANDOVER.md` for operations.

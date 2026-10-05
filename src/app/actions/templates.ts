@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireOrg, hasRole } from "@/lib/auth";
 import { parseDesign } from "@/lib/templates/schema";
 import { TEMPLATE_COLUMNS } from "@/lib/templates/data";
+import { catalogCustomKeys, ensureFieldsForDesigns, ensureFieldsForKeys } from "@/lib/templates/template-fields";
 import type { ActionState } from "@/lib/action-state";
 
 export async function setDefaultTemplate(templateId: string): Promise<void> {
@@ -24,6 +25,10 @@ export async function setDefaultTemplate(templateId: string): Promise<void> {
     .maybeSingle();
   if (!t) return;
   await supabase.from("organization_settings").update({ default_template_id: t.id }).eq("organization_id", org.id);
+  // Make sure the member form has every custom field this design prints.
+  const { data: full } = await supabase.from("card_templates").select("front_design, back_design").eq("id", t.id).maybeSingle();
+  if (full) await ensureFieldsForDesigns(supabase, org.id, full.front_design, full.back_design);
+  revalidatePath("/app/settings/fields");
   revalidatePath("/app/templates");
   revalidatePath(`/app/templates/${t.id}`);
   revalidatePath("/app/members", "layout");
@@ -90,6 +95,35 @@ export async function customizeTemplate(baseId: string, _prev: ActionState, form
     .select("id")
     .single();
   if (error || !created) return { error: "Could not save the template. Please try again." };
+  await ensureFieldsForDesigns(supabase, org.id, front, back);
   revalidatePath("/app/templates");
   redirect(`/app/templates/${created.id}`);
+}
+
+/** Create the custom fields one template needs (admin only). */
+export async function addTemplateFields(templateId: string): Promise<void> {
+  const { org, role } = await requireOrg();
+  if (!hasRole(role, "org_admin") || !z.uuid().safeParse(templateId).success) return;
+  const supabase = await createClient();
+  const { data: t } = await supabase
+    .from("card_templates")
+    .select("front_design, back_design")
+    .eq("id", templateId)
+    .or(`organization_id.is.null,organization_id.eq.${org.id}`)
+    .maybeSingle();
+  if (!t) return;
+  await ensureFieldsForDesigns(supabase, org.id, t.front_design, t.back_design);
+  revalidatePath(`/app/templates/${templateId}`);
+  revalidatePath("/app/settings/fields");
+  revalidatePath("/app/members", "layout");
+}
+
+/** Create every custom field that any built-in template uses, in one click (admin only). */
+export async function addAllTemplateFields(): Promise<void> {
+  const { org, role } = await requireOrg();
+  if (!hasRole(role, "org_admin")) return;
+  await ensureFieldsForKeys(await createClient(), org.id, catalogCustomKeys());
+  revalidatePath("/app/templates", "layout");
+  revalidatePath("/app/settings/fields");
+  revalidatePath("/app/members", "layout");
 }

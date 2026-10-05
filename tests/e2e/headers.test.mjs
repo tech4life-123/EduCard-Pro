@@ -35,5 +35,13 @@ for (const p of ["/app", "/app/members", "/app/cards", "/app/batches", "/app/tem
   const r = await get("/login?next=//evil.com");
   ok("login page loads with hostile next param", r.status === 200);
 }
+{
+  const h = await get("/api/health");
+  ok("health endpoint answers without leaking details", [200, 503].includes(h.status) && /^\{"status":"(ok|degraded)"\}$/.test(await h.text()));
+  const nf = await get("/definitely-not-a-page");
+  ok("unknown page gives a friendly 404", nf.status === 404 && /Page not found/.test(await nf.text()));
+  const rb = await (await get("/robots.txt")).text();
+  ok("robots.txt hides /app and /verify/", /Disallow: \/app/.test(rb) && /Disallow: \/verify\//.test(rb));
+}
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
