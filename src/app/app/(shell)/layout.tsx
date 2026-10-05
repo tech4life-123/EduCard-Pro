@@ -11,6 +11,7 @@ export default async function ShellLayout({ children }: LayoutProps<"/app">) {
     { href: "/app", label: "Dashboard" },
     { href: "/app/members", label: "Members" },
     { href: "/app/cards", label: "Cards" },
+    { href: "/app/batches", label: "Batches" },
     { href: "/app/templates", label: "Templates" },
     ...(hasRole(role, "org_admin")
       ? [
@@ -47,12 +48,11 @@ export default async function ShellLayout({ children }: LayoutProps<"/app">) {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-24 pt-5 md:pb-10">{children}</main>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-10 grid border-t border-slate-200 bg-white md:hidden"
-        style={{ gridTemplateColumns: `repeat(${links.length}, minmax(0, 1fr))` }}
+        className="fixed inset-x-0 bottom-0 z-10 flex overflow-x-auto border-t border-slate-200 bg-white md:hidden"
         aria-label="Main"
       >
         {links.map((l) => (
-          <Link key={l.href} href={l.href} className="truncate px-0.5 py-3.5 text-center text-xs font-medium text-slate-700 active:bg-slate-100">
+          <Link key={l.href} href={l.href} className="min-w-20 flex-1 shrink-0 px-3 py-3.5 text-center text-xs font-medium text-slate-700 active:bg-slate-100">
             {l.label}
           </Link>
         ))}

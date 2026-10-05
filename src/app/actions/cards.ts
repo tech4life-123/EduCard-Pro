@@ -8,16 +8,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOrg, hasRole } from "@/lib/auth";
 import { generateCredentialToken, hashCredential, verifyUrl } from "@/lib/credentials";
 import { qrModules } from "@/lib/qr";
+import { createActiveCard } from "@/lib/cards-core";
 
 export type IssueState = { error?: string; qr?: boolean[][]; cardId?: string; cardNumber?: string } | null;
 
 const uuid = z.uuid();
-
-function addMonths(d: Date, months: number): string {
-  const x = new Date(d);
-  x.setUTCMonth(x.getUTCMonth() + months);
-  return x.toISOString().slice(0, 10);
-}
 
 /**
  * Issue an ID card for a member. Admin only (staff can prepare members and photos, admins activate).
@@ -48,39 +43,17 @@ export async function issueCard(memberId: string, _prev: IssueState, _formData: 
     .limit(1)
     .maybeSingle();
 
-  const { data: number, error: nErr } = await supabase.rpc("next_card_number", { p_org: org.id });
-  if (nErr || !number) return { error: "Could not allocate a card number. Please try again." };
-
-  const today = new Date();
-  const { data: card, error } = await supabase
-    .from("id_cards")
-    .insert({
-      organization_id: org.id,
-      member_id: memberId,
-      template_id: settings.default_template_id,
-      card_number: number as string,
-      status: "active",
-      issue_date: today.toISOString().slice(0, 10),
-      expiry_date: addMonths(today, settings.card_validity_months),
-      replacement_number: live ? live.replacement_number + 1 : 1,
-      replaces_card_id: live?.id ?? null,
-      created_by: user.id,
-    })
-    .select("id, card_number")
-    .single();
-  if (error || !card) return { error: "Could not issue the card. Please try again." };
-
-  const token = generateCredentialToken();
-  const { error: cErr } = await supabase
-    .from("verification_credentials")
-    .insert({ organization_id: org.id, card_id: card.id, credential_hash: hashCredential(token) });
-  if (cErr) {
-    // Never leave an active card without a credential.
-    await supabase.from("id_cards").update({ status: "revoked" }).eq("id", card.id);
-    return { error: "Could not create the QR credential. Please try again." };
-  }
-
-  if (live) await supabase.from("id_cards").update({ status: "replaced" }).eq("id", live.id);
+  const made = await createActiveCard(supabase, {
+    orgId: org.id,
+    memberId,
+    templateId: settings.default_template_id,
+    validityMonths: settings.card_validity_months,
+    userId: user.id,
+    replaces: live,
+  });
+  if (!made.ok) return { error: made.error + " Please try again." };
+  const card = { id: made.cardId, card_number: made.cardNumber };
+  const token = made.token;
 
   revalidatePath("/app/cards");
   revalidatePath(`/app/members/${memberId}`);

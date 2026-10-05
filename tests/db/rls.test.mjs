@@ -22,7 +22,7 @@ await db.exec(`
   alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 `);
 
-for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql", "20261005000005_starter_templates.sql"]) {
+for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql", "20261005000005_starter_templates.sql", "20261005000006_batch_record_guard.sql"]) {
   try { await db.exec(readFileSync(MIG + f, "utf8")); console.log("migration ok:", f); }
   catch (e) { console.log("MIGRATION FAILED:", f, "\n", e.message); process.exit(1); }
 }
@@ -199,6 +199,18 @@ denied("B cannot issue a card for A's member", await as("authenticated", B,
   "insert into public.id_cards (organization_id, member_id, card_number, status) values ($1,$2,'BETA-X','active')", [orgB, memA]));
 ok("staff cannot suspend a card", (await as("authenticated", C, "update public.id_cards set status='suspended' where id=$1 returning id", [cardA])).error !== undefined);
 ok("status history recorded issuance", (await db.query("select count(*)::int n from public.card_status_history where card_id=$1", [cardA])).rows[0].n === 1);
+
+// ---- batches (Phase 6) --------------------------------------------------------------
+const bt = await as("authenticated", C, "insert into public.card_batches (organization_id, name, status, total_records) values ($1,'Grade 5','ready',1) returning id", [orgA]);
+allowed("staff creates a batch", bt);
+const batchA = bt.rows?.[0]?.id;
+allowed("staff stores batch records", await as("authenticated", C,
+  "insert into public.batch_records (organization_id, batch_id, row_number, raw_data) values ($1,$2,1,'{}'::jsonb)", [orgA, batchA]));
+ok("B cannot see A's batches", (await as("authenticated", B, "select count(*)::int n from public.card_batches")).rows[0].n === 0);
+ok("B cannot see A's batch records", (await as("authenticated", B, "select count(*)::int n from public.batch_records")).rows[0].n === 0);
+denied("B cannot add records to A's batch", await as("authenticated", B,
+  "insert into public.batch_records (organization_id, batch_id, row_number, raw_data) values ($1,$2,2,'{}'::jsonb)", [orgB, batchA]));
+ok("staff cannot delete a batch (admin only)", (await as("authenticated", C, "delete from public.card_batches where id=$1 returning id", [batchA])).rows?.length === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
