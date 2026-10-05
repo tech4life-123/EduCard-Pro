@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireOrg } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { buttonClass, inputClass, secondaryButtonClass } from "@/components/form";
+import { signedPhotoUrls } from "@/lib/photos";
 
 export const metadata = { title: "Members · EduCard Pro" };
 
@@ -23,7 +24,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/app/memb
   const supabase = await createClient();
   let query = supabase
     .from("members")
-    .select("id, member_number, full_name, role_title, department, class_name, status", { count: "exact" })
+    .select("id, member_number, full_name, role_title, department, class_name, status, photo_processed_path", { count: "exact" })
     .eq("organization_id", org.id)
     .order("created_at", { ascending: false })
     .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
@@ -31,6 +32,7 @@ export default async function MembersPage({ searchParams }: PageProps<"/app/memb
   if (q) query = query.or(`full_name.ilike.%${q}%,member_number.ilike.%${q}%`);
   const { data, count } = await query;
 
+  const photos = await signedPhotoUrls((data ?? []).map((m) => m.photo_processed_path));
   const total = count ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const link = (p: number) => `/app/members?${new URLSearchParams({ ...(q ? { q } : {}), status, page: String(p) })}`;
@@ -67,6 +69,14 @@ export default async function MembersPage({ searchParams }: PageProps<"/app/memb
           {(data ?? []).map((m) => (
             <li key={m.id}>
               <Link href={`/app/members/${m.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+                {m.photo_processed_path && photos.get(m.photo_processed_path) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photos.get(m.photo_processed_path)} alt="" width={40} height={53} className="h-13 w-10 shrink-0 rounded object-cover" />
+                ) : (
+                  <span className="flex h-13 w-10 shrink-0 items-center justify-center rounded bg-slate-100 text-sm font-semibold text-slate-500" aria-hidden>
+                    {m.full_name.split(" ").filter(Boolean).slice(0, 2).map((p: string) => p[0]?.toUpperCase()).join("")}
+                  </span>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{m.full_name}</p>
                   <p className="truncate text-sm text-slate-600">

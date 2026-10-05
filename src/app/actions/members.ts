@@ -118,6 +118,7 @@ export async function saveMember(_prev: ActionState, formData: FormData): Promis
 
   const supabase = await createClient();
   const fields = { ...parsed.data, custom_fields: custom.values };
+  let newId: string | null = null;
 
   if (id?.success) {
     const { data, error } = await supabase
@@ -131,15 +132,19 @@ export async function saveMember(_prev: ActionState, formData: FormData): Promis
   } else {
     const { data: number, error: numError } = await supabase.rpc("next_member_number", { p_org: org.id });
     if (numError || !number) return { error: "Could not allocate a member number. Please try again." };
-    const { error } = await supabase
+    const { data: created, error } = await supabase
       .from("members")
-      .insert({ ...fields, organization_id: org.id, member_number: number as string, created_by: user.id });
-    if (error) return { error: "Could not add the member. Please try again." };
+      .insert({ ...fields, organization_id: org.id, member_number: number as string, created_by: user.id })
+      .select("id")
+      .single();
+    if (error || !created) return { error: "Could not add the member. Please try again." };
+    newId = created.id;
   }
 
   revalidatePath("/app/members");
   revalidatePath("/app");
-  redirect("/app/members");
+  // A new member goes straight to their page so a photo can be added.
+  redirect(newId ? `/app/members/${newId}?added=1` : "/app/members");
 }
 
 /** Archive instead of deleting, so issued cards keep a valid history. */
