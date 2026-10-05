@@ -8,7 +8,7 @@ import { CardSide } from "@/components/card-svg";
 import { buttonClass } from "@/components/form";
 import { setDefaultTemplate } from "@/app/actions/templates";
 import { loadBranding, loadDefaultTemplateId, memberCardValues, SAMPLE_VALUES, TEMPLATE_COLUMNS } from "@/lib/templates/data";
-import type { TemplateRow } from "@/lib/templates/schema";
+import { customKeysUsed, type TemplateRow } from "@/lib/templates/schema";
 import { CustomizeForm } from "./customize-form";
 
 export const metadata = { title: "Template · EduCard Pro" };
@@ -29,7 +29,13 @@ export default async function TemplatePage({ params, searchParams }: PageProps<"
   if (!data) notFound();
   const t = data as unknown as TemplateRow;
 
-  const [brand, defaultId] = await Promise.all([loadBranding(org.id), loadDefaultTemplateId(org.id)]);
+  const [brand, defaultId, { data: defs }] = await Promise.all([
+    loadBranding(org.id),
+    loadDefaultTemplateId(org.id),
+    supabase.from("member_custom_field_defs").select("key").eq("organization_id", org.id),
+  ]);
+  const have = new Set((defs ?? []).map((d) => d.key));
+  const missing = customKeysUsed(t.front_design, t.back_design).filter((k) => !have.has(k));
   const { data: members } = await supabase
     .from("members")
     .select("*")
@@ -57,6 +63,13 @@ export default async function TemplatePage({ params, searchParams }: PageProps<"
           Standard ID card size ({size.widthMm} × {size.heightMm} mm). The QR code on printed cards is generated when a card is issued.
         </p>
       </div>
+
+      {missing.length > 0 ? (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          This design shows custom fields you have not created yet: <span className="font-mono">{missing.join(", ")}</span>. Add them under{" "}
+          <Link href="/app/settings/fields" className="underline">Fields</Link> using exactly these keys (for example a field labelled &ldquo;{missing[0].replace(/_/g, " ")}&rdquo;), or pick another design.
+        </p>
+      ) : null}
 
       <form method="get" className="flex flex-wrap items-end gap-2">
         <div>

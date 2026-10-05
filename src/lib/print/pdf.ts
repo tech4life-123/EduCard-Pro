@@ -2,8 +2,9 @@ import "server-only";
 import {
   PDFDocument, PDFFont, PDFImage, PDFPage, StandardFonts, rgb, pushGraphicsState, popGraphicsState,
   moveTo, lineTo, appendBezierCurve, closePath, clip, endPath, type Color,
+  PDFName, PDFDict, PDFOperator, PDFOperatorNames,
 } from "pdf-lib";
-import { parseDesign, type Branding, type CardElement } from "@/lib/templates/schema";
+import { gradientLine, parseDesign, resolveHex, type Branding, type CardElement, type Gradient, type Paint } from "@/lib/templates/schema";
 
 const K = 72 / 25.4; // mm -> PDF points
 const KAPPA = 0.5522847498;
@@ -23,9 +24,37 @@ export type Layout = "card" | "a4";
 type Ctx = { doc: PDFDocument; regular: PDFFont; bold: PDFFont; brand: Branding; logo: PDFImage | null; photos: Map<string, PDFImage> };
 
 function hex(c: string | undefined, b: Branding): Color | undefined {
-  const v = c === "$primary" ? b.primary : c === "$secondary" ? b.secondary : c === "$ink" ? "#0f172a" : c === "$muted" ? "#64748b" : c === "$paper" ? "#ffffff" : c;
-  if (!v || !/^#[0-9a-fA-F]{6}$/.test(v)) return undefined;
+  const v = resolveHex(c, b);
+  if (!v) return undefined;
   return rgb(parseInt(v.slice(1, 3), 16) / 255, parseInt(v.slice(3, 5), 16) / 255, parseInt(v.slice(5, 7), 16) / 255);
+}
+const rgbArr = (c: string | undefined, b: Branding): number[] => {
+  const v = resolveHex(c, b) ?? "#ffffff";
+  return [parseInt(v.slice(1, 3), 16) / 255, parseInt(v.slice(3, 5), 16) / 255, parseInt(v.slice(5, 7), 16) / 255];
+};
+
+let shadeId = 0;
+/** Paint a true vector gradient over the current clip. Box is in PDF coordinates (origin bottom-left). */
+function shade(page: PDFPage, ctx: Ctx, g: Gradient, x: number, y: number, w: number, h: number) {
+  const l = gradientLine(g.angle, 0, 0, w, h); // design space, y down, relative to the box
+  const context = ctx.doc.context;
+  const fn = context.obj({ FunctionType: 2, Domain: [0, 1], C0: rgbArr(g.from, ctx.brand), C1: rgbArr(g.to, ctx.brand), N: 1 });
+  const sh = context.obj({
+    ShadingType: 2,
+    ColorSpace: "DeviceRGB",
+    Coords: [x + l.x1, y + h - l.y1, x + l.x2, y + h - l.y2],
+    Function: fn,
+    Extend: [true, true],
+  });
+  const name = `Gr${++shadeId}`;
+  const res = page.node.normalizedEntries().Resources;
+  let shd = res.lookupMaybe(PDFName.of("Shading"), PDFDict);
+  if (!shd) {
+    shd = context.obj({});
+    res.set(PDFName.of("Shading"), shd);
+  }
+  shd.set(PDFName.of(name), context.register(sh));
+  page.pushOperators(PDFOperator.of("sh" as PDFOperatorNames, [PDFName.of(name)]));
 }
 
 /** Standard PDF fonts only cover Latin-1; swap anything else for a close ASCII letter or "?". */
@@ -72,6 +101,9 @@ function clipEllipse(page: PDFPage, x: number, y: number, w: number, h: number) 
     closePath(), clip(), endPath(),
   );
 }
+function clipPoly(page: PDFPage, pts: Array<[number, number]>) {
+  page.pushOperators(pushGraphicsState(), moveTo(pts[0][0], pts[0][1]), ...pts.slice(1).map(([px, py]) => lineTo(px, py)), closePath(), clip(), endPath());
+}
 const unclip = (page: PDFPage) => page.pushOperators(popGraphicsState());
 
 function roundedPath(w: number, h: number, r: number) {
@@ -101,15 +133,35 @@ function drawElement(page: PDFPage, ctx: Ctx, ox: number, oy: number, pageH: num
   const b = ctx.brand;
 
   if (el.type === "shape") {
-    const fill = hex(el.fill, b), stroke = el.stroke ? hex(el.stroke, b) : undefined;
+    const grad = el.fill && typeof el.fill === "object" ? el.fill : null;
+    const fill = grad ? undefined : hex(el.fill as string | undefined, b);
+    const stroke = el.stroke ? hex(el.stroke, b) : undefined;
+    const bx = X(el.x), by = Y(el.y + el.h), bw = el.w * K, bh = el.h * K;
     if (el.kind === "line") {
       page.drawLine({ start: { x: X(el.x), y: Y(el.y) }, end: { x: X(el.x + el.w), y: Y(el.y + el.h) }, thickness: (el.strokeMm ?? 0.3) * K, color: stroke ?? fill ?? rgb(0, 0, 0), opacity: el.opacity });
+    } else if (el.kind === "poly" && el.points) {
+      if (grad) {
+        clipPoly(page, el.points.map(([px, py]) => [X(px), Y(py)] as [number, number]));
+        shade(page, ctx, grad, bx, by, bw, bh);
+        unclip(page);
+      } else {
+        const path = el.points.map(([px, py], i) => `${i ? "L" : "M"} ${px * K} ${py * K}`).join(" ") + " Z";
+        page.drawSvgPath(path, { x: ox * K, y: pageH - oy * K, color: fill, borderColor: stroke, borderWidth: (el.strokeMm ?? 0) * K, opacity: el.opacity });
+      }
     } else if (el.kind === "circle") {
-      page.drawEllipse({ x: X(el.x + el.w / 2), y: Y(el.y + el.h / 2), xScale: (el.w / 2) * K, yScale: (el.h / 2) * K, color: fill, borderColor: stroke, borderWidth: (el.strokeMm ?? 0) * K, opacity: el.opacity });
+      if (grad) {
+        clipEllipse(page, bx, by, bw, bh);
+        shade(page, ctx, grad, bx, by, bw, bh);
+        unclip(page);
+      } else page.drawEllipse({ x: X(el.x + el.w / 2), y: Y(el.y + el.h / 2), xScale: (el.w / 2) * K, yScale: (el.h / 2) * K, color: fill, borderColor: stroke, borderWidth: (el.strokeMm ?? 0) * K, opacity: el.opacity });
+    } else if (grad) {
+      clipRoundRect(page, bx, by, bw, bh, (el.radius ?? 0) * K);
+      shade(page, ctx, grad, bx, by, bw, bh);
+      unclip(page);
     } else if (el.radius) {
-      page.drawSvgPath(roundedPath(el.w * K, el.h * K, el.radius * K), { x: X(el.x), y: Y(el.y), color: fill, borderColor: stroke, borderWidth: (el.strokeMm ?? 0) * K, opacity: el.opacity });
+      page.drawSvgPath(roundedPath(bw, bh, el.radius * K), { x: bx, y: Y(el.y), color: fill, borderColor: stroke, borderWidth: (el.strokeMm ?? 0) * K, opacity: el.opacity });
     } else {
-      page.drawRectangle({ x: X(el.x), y: Y(el.y + el.h), width: el.w * K, height: el.h * K, color: fill, borderColor: stroke, borderWidth: (el.strokeMm ?? 0) * K, opacity: el.opacity });
+      page.drawRectangle({ x: bx, y: by, width: bw, height: bh, color: fill, borderColor: stroke, borderWidth: (el.strokeMm ?? 0) * K, opacity: el.opacity });
     }
     return;
   }
@@ -188,6 +240,14 @@ function drawElement(page: PDFPage, ctx: Ctx, ox: number, oy: number, pageH: num
     lines.slice(0, el.lines).forEach((ln, i) => drawText(page, ctx, ln, X(el.x), Y(el.y) - sizePt * 1.0 - i * sizePt * 1.3, el.w * K, { size: sizePt, bold, align: el.align, color, opacity: el.opacity, fit: false }));
     return;
   }
+  if (el.type === "field" && el.inline && el.label) {
+    const prefix = `${el.label}: `;
+    const lw = ctx.bold.widthOfTextAtSize(clean(ctx.bold, prefix), sizePt);
+    const base = Y(el.y + Math.min(el.h, (sizePt / K) * 1.1));
+    page.drawText(clean(ctx.bold, prefix), { x: X(el.x), y: base, size: sizePt, font: ctx.bold, color: hex("$muted", b) });
+    drawText(page, ctx, value || "-", X(el.x) + lw, base, Math.max(5, el.w * K - lw), { size: sizePt, bold, align: "start", color, opacity: el.opacity });
+    return;
+  }
   if (el.type === "field" && el.label) {
     const labelPt = Math.max(4.5, sizePt * 0.55);
     drawText(page, ctx, el.label.toUpperCase(), X(el.x), Y(el.y) - labelPt * 0.95, el.w * K, { size: labelPt, bold: true, align: el.align, color: hex("$muted", b) });
@@ -201,7 +261,8 @@ function drawSide(page: PDFPage, ctx: Ctx, ox: number, oy: number, pageH: number
   const d = parseDesign(design);
   const x = ox * K, y = pageH - (oy + p.heightMm) * K, w = p.widthMm * K, h = p.heightMm * K;
   clipRoundRect(page, x, y, w, h, 3.2 * K);
-  page.drawRectangle({ x, y, width: w, height: h, color: hex(d.background, ctx.brand) ?? rgb(1, 1, 1) });
+  if (d.background && typeof d.background === "object") shade(page, ctx, d.background, x, y, w, h);
+  else page.drawRectangle({ x, y, width: w, height: h, color: hex(d.background as string, ctx.brand) ?? rgb(1, 1, 1) });
   for (const el of d.elements) drawElement(page, ctx, ox, oy, pageH, el, p);
   unclip(page);
 }

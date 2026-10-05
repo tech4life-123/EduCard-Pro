@@ -63,6 +63,9 @@ export const SAMPLE_VALUES: CardData["values"] = {
   phone: "+231 77 000 0000",
   issue_date: "01 Oct 2026",
   expiry_date: "30 Sep 2027",
+  "custom:block": "B",
+  "custom:house_no": "45",
+  "custom:house_code": "BMB-B-45",
 };
 
 type MemberLike = Record<string, unknown> & { custom_fields?: unknown };

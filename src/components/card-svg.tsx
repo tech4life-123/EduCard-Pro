@@ -1,4 +1,4 @@
-import { parseDesign, type Branding, type CardElement } from "@/lib/templates/schema";
+import { gradientLine, parseDesign, resolveHex, type Branding, type CardElement, type Paint } from "@/lib/templates/schema";
 
 export type CardData = {
   /** Values keyed by field binding (`full_name`, `custom:blood_group`, ...). */
@@ -12,25 +12,30 @@ const PT_TO_MM = 0.3528;
 const FONT = "Helvetica, Arial, 'Segoe UI', sans-serif";
 
 function resolveColor(c: string | undefined, b: Branding): string {
-  switch (c) {
-    case "$primary":
-      return b.primary;
-    case "$secondary":
-      return b.secondary;
-    case "$ink":
-      return "#0f172a";
-    case "$muted":
-      return "#64748b";
-    case "$paper":
-      return "#ffffff";
-    default:
-      return c ?? "none";
+  return resolveHex(c, b) ?? "none";
+}
+
+/** Fill attribute for a solid color or gradient, plus the <linearGradient> definition when needed. */
+function paintFill(p: Paint | undefined, b: Branding, id: string, x: number, y: number, w: number, h: number): { fill: string; def: React.ReactNode } {
+  if (p && typeof p === "object") {
+    const g = gradientLine(p.angle, x, y, w, h);
+    return {
+      fill: `url(#${id})`,
+      def: (
+        <linearGradient id={id} gradientUnits="userSpaceOnUse" x1={g.x1} y1={g.y1} x2={g.x2} y2={g.y2}>
+          <stop offset="0" stopColor={resolveColor(p.from, b)} />
+          <stop offset="1" stopColor={resolveColor(p.to, b)} />
+        </linearGradient>
+      ),
+    };
   }
+  return { fill: resolveColor(p, b), def: null };
 }
 
 /** Shrink then truncate so text never leaves its box (average glyph width ~0.56em). */
-function fit(text: string, boxW: number, fontMm: number, weight: number) {
-  const em = weight >= 700 ? 0.6 : 0.54;
+function fit(text: string, boxW: number, fontMm: number, weight: number, upper = false) {
+  // Deliberately generous glyph widths: viewers substitute wider fonts than Helvetica.
+  const em = (weight >= 700 ? 0.62 : 0.57) + (upper ? 0.1 : 0);
   let size = fontMm;
   const needed = text.length * em * size;
   if (needed > boxW) size = Math.max(fontMm * 0.65, (boxW / (text.length * em)));
@@ -108,15 +113,34 @@ function Element({ el, data, brand, uid }: { el: CardElement; data: CardData; br
   if (el.hidden) return null;
 
   if (el.type === "shape") {
-    const fill = resolveColor(el.fill, brand);
+    const pf = paintFill(el.fill, brand, `${uid}-g-${el.id}`, el.x, el.y, el.w, el.h);
+    const fill = pf.fill;
     const stroke = el.stroke ? resolveColor(el.stroke, brand) : "none";
+    if (el.kind === "poly" && el.points) {
+      return (
+        <g>
+          {pf.def ? <defs>{pf.def}</defs> : null}
+          <polygon points={el.points.map(([px, py]) => `${px},${py}`).join(" ")} fill={fill} stroke={stroke} strokeWidth={el.strokeMm ?? 0} opacity={el.opacity} />
+        </g>
+      );
+    }
     if (el.kind === "line") {
       return <line x1={el.x} y1={el.y} x2={el.x + el.w} y2={el.y + el.h} stroke={stroke === "none" ? fill : stroke} strokeWidth={el.strokeMm ?? 0.3} opacity={el.opacity} />;
     }
     if (el.kind === "circle") {
-      return <ellipse cx={el.x + el.w / 2} cy={el.y + el.h / 2} rx={el.w / 2} ry={el.h / 2} fill={fill} stroke={stroke} strokeWidth={el.strokeMm ?? 0} opacity={el.opacity} />;
+      return (
+        <g>
+          {pf.def ? <defs>{pf.def}</defs> : null}
+          <ellipse cx={el.x + el.w / 2} cy={el.y + el.h / 2} rx={el.w / 2} ry={el.h / 2} fill={fill} stroke={stroke} strokeWidth={el.strokeMm ?? 0} opacity={el.opacity} />
+        </g>
+      );
     }
-    return <rect x={el.x} y={el.y} width={el.w} height={el.h} rx={el.radius ?? 0} fill={fill} stroke={stroke} strokeWidth={el.strokeMm ?? 0} opacity={el.opacity} />;
+    return (
+      <g>
+        {pf.def ? <defs>{pf.def}</defs> : null}
+        <rect x={el.x} y={el.y} width={el.w} height={el.h} rx={el.radius ?? 0} fill={fill} stroke={stroke} strokeWidth={el.strokeMm ?? 0} opacity={el.opacity} />
+      </g>
+    );
   }
 
   if (el.type === "photo") {
@@ -197,9 +221,22 @@ function Element({ el, data, brand, uid }: { el: CardElement; data: CardData; br
     );
   }
 
+  if (el.type === "field" && el.inline && el.label) {
+    const prefix = `${el.label}: `;
+    const fitted = fit(prefix + (value || "—"), el.w, fontMm, el.weight, !!el.uppercase);
+    return (
+      <text {...common} x={ax} y={el.y + Math.min(el.h, fontMm * 1.1)} fontSize={fitted.size}>
+        <tspan fill={resolveColor("$muted", brand)} fontWeight={600}>
+          {fitted.text.slice(0, prefix.length)}
+        </tspan>
+        <tspan>{fitted.text.slice(prefix.length)}</tspan>
+      </text>
+    );
+  }
+
   if (el.type === "field" && el.label) {
     const labelMm = Math.max(1.6, fontMm * 0.55);
-    const fitted = fit(value || "—", el.w, fontMm, el.weight);
+    const fitted = fit(value || "—", el.w, fontMm, el.weight, !!el.uppercase);
     return (
       <g>
         <text x={ax} y={el.y + labelMm * 0.95} fontSize={labelMm} fontFamily={FONT} fontWeight={600} fill={resolveColor("$muted", brand)} textAnchor={el.align} letterSpacing={labelMm * 0.06}>
@@ -212,7 +249,7 @@ function Element({ el, data, brand, uid }: { el: CardElement; data: CardData; br
     );
   }
 
-  const fitted = fit(value, el.w, fontMm, el.weight);
+  const fitted = fit(value, el.w, fontMm, el.weight, !!el.uppercase);
   return (
     <text {...common} x={ax} y={el.y + Math.min(el.h, fontMm * 1.1)} fontSize={fitted.size}>
       {fitted.text}
@@ -249,15 +286,17 @@ export function CardSide({
   const d = parseDesign(design);
   const radius = 3.2; // CR80 corner radius
   const clip = `${uid}-card`;
+  const bg = paintFill(d.background, brand, `${uid}-bg`, 0, 0, widthMm, heightMm);
   return (
     <svg viewBox={`0 0 ${widthMm} ${heightMm}`} className={className} role="img" aria-label="ID card preview" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <clipPath id={clip}>
           <rect x={0} y={0} width={widthMm} height={heightMm} rx={radius} />
         </clipPath>
+        {bg.def}
       </defs>
       <g clipPath={`url(#${clip})`}>
-        <rect x={0} y={0} width={widthMm} height={heightMm} fill={resolveColor(d.background, brand)} />
+        <rect x={0} y={0} width={widthMm} height={heightMm} fill={bg.fill} />
         {d.elements.map((el) => (
           <Element key={el.id} el={el} data={data} brand={brand} uid={uid} />
         ))}
