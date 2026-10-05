@@ -22,7 +22,7 @@ await db.exec(`
   alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 `);
 
-for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql"]) {
+for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql"]) {
   try { await db.exec(readFileSync(MIG + f, "utf8")); console.log("migration ok:", f); }
   catch (e) { console.log("MIGRATION FAILED:", f, "\n", e.message); process.exit(1); }
 }

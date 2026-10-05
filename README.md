@@ -15,7 +15,7 @@ Status: **Phase 1 (Foundation)** complete. See `docs/ARCHITECTURE.md` for the fu
 1. `cp .env.example .env.local` and fill in the keys from Supabase → Project Settings → API.
    - `SUPABASE_SERVICE_ROLE_KEY` is a secret: server-side only, never `NEXT_PUBLIC_`.
    - `IP_HASH_SALT`: `openssl rand -base64 32`
-2. Apply the migrations to your Supabase project (project ref `swfrpywkjqnmrqozdtbo`):
+2. Migrations 0001–0004 are already applied to project `swfrpywkjqnmrqozdtbo`. For a fresh project, apply them with:
    ```bash
    npx supabase login
    npx supabase link --project-ref swfrpywkjqnmrqozdtbo
