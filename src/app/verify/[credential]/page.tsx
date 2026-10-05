@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { verifyToken, type VerifyResult } from "@/lib/verify";
 
 // Verification pages must never be indexed or cached as a shared page.
@@ -116,6 +117,12 @@ export default async function VerifyPage({
               <dd className="font-semibold">{outcome.issued}</dd>
             </div>
           )}
+          {outcome.expires && (
+            <div className="border-t py-2">
+              <dt className="text-slate-500">Valid until</dt>
+              <dd className="font-semibold">{outcome.expires}</dd>
+            </div>
+          )}
           {outcome.public_fields &&
             Object.entries(outcome.public_fields).map(([k, v]) => (
               <div key={k} className="border-t py-2">
@@ -126,6 +133,12 @@ export default async function VerifyPage({
           {outcome.wording && <p className="border-t pt-2 text-slate-600">{outcome.wording}</p>}
         </dl>
       )}
+
+      <div className="text-center">
+        <Link href="/verify" className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium">
+          Check another ID
+        </Link>
+      </div>
 
       <p className="text-center text-xs text-slate-500">
         A valid result confirms the card is on record and in good standing. Always compare the photo

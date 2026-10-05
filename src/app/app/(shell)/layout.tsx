@@ -16,6 +16,7 @@ export default async function ShellLayout({ children }: LayoutProps<"/app">) {
     ...(hasRole(role, "org_admin")
       ? [
           { href: "/app/settings/fields", label: "Fields" },
+          { href: "/app/verifications", label: "Scans" },
           { href: "/app/settings/branding", label: "Branding" },
         ]
       : []),

@@ -22,7 +22,7 @@ await db.exec(`
   alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 `);
 
-for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql", "20261005000005_starter_templates.sql", "20261005000006_batch_record_guard.sql"]) {
+for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql", "20261005000005_starter_templates.sql", "20261005000006_batch_record_guard.sql", "20261005000007_verify_expiry.sql"]) {
   try { await db.exec(readFileSync(MIG + f, "utf8")); console.log("migration ok:", f); }
   catch (e) { console.log("MIGRATION FAILED:", f, "\n", e.message); process.exit(1); }
 }
@@ -211,6 +211,14 @@ ok("B cannot see A's batch records", (await as("authenticated", B, "select count
 denied("B cannot add records to A's batch", await as("authenticated", B,
   "insert into public.batch_records (organization_id, batch_id, row_number, raw_data) values ($1,$2,2,'{}'::jsonb)", [orgB, batchA]));
 ok("staff cannot delete a batch (admin only)", (await as("authenticated", C, "delete from public.card_batches where id=$1 returning id", [batchA])).rows?.length === 0);
+
+// ---- verification UI support (Phase 7) -------------------------------------------------
+await db.query("update public.id_cards set status='active', issue_date=current_date, expiry_date=current_date+30 where id=$1", [cardId]);
+{ const x = await v(hash); ok("verify result includes expiry month", typeof x?.expires === "string" && x.expires.length > 3, JSON.stringify(x)); }
+ok("org admin sees own scan events", (await as("authenticated", A, "select count(*)::int n from public.verification_events")).rows[0].n > 0);
+ok("other org cannot see A's scan events", (await as("authenticated", B, "select count(*)::int n from public.verification_events where card_id=$1", [cardId])).rows[0].n === 0);
+ok("staff cannot read scan events", (await as("authenticated", C, "select count(*)::int n from public.verification_events")).rows[0].n === 0);
+denied("clients cannot forge scan events", await as("authenticated", A, "insert into public.verification_events (organization_id, card_id, result) values ($1,$2,'VERIFIED')", [orgA, cardId]));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -18,6 +18,7 @@ export interface VerifyOutcome {
   organization?: string;
   card_number?: string;
   issued?: string;
+  expires?: string;
   wording?: string | null;
   public_fields?: Record<string, string>;
 }
