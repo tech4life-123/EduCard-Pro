@@ -2,7 +2,7 @@
 
 Professional ID Card Creation & Verification Platform — multi-organization, mobile-first, secure by design.
 
-Status: **Phases 1–8 complete**: foundation, accounts/organizations/members, photo capture, 56 card templates (10 categories, gradient and plain no-background styles), ID card issuing with real QR credentials, CSV batches, public verification, and the print engine (true-size PDF, A4 sheets, crop marks). See `docs/ARCHITECTURE.md` for the full plan.
+Status: **Phases 1–9 complete**: foundation, accounts/organizations/members, photo capture, 56 card templates (10 categories, gradient and plain no-background styles), ID card issuing with real QR credentials, CSV batches, public verification, the print engine, and a security review (headers, rate limits, tests; see docs/SECURITY.md) (true-size PDF, A4 sheets, crop marks). See `docs/ARCHITECTURE.md` for the full plan.
 
 ## What exists now
 

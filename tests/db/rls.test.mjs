@@ -22,7 +22,7 @@ await db.exec(`
   alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 `);
 
-for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql", "20261005000005_starter_templates.sql", "20261005000006_batch_record_guard.sql", "20261005000007_verify_expiry.sql", "20261005000008_template_catalog.sql"]) {
+for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql", "20261005000005_starter_templates.sql", "20261005000006_batch_record_guard.sql", "20261005000007_verify_expiry.sql", "20261005000008_template_catalog.sql", "20261005000009_security_hardening.sql"]) {
   try { await db.exec(readFileSync(MIG + f, "utf8")); console.log("migration ok:", f); }
   catch (e) { console.log("MIGRATION FAILED:", f, "\n", e.message); process.exit(1); }
 }
@@ -84,7 +84,9 @@ denied("A cannot self-insert into orgB's users", await as("authenticated", A,
 // ---- roles --------------------------------------------------------------------
 denied("staff cannot add org users", await as("authenticated", C,
   "insert into public.organization_users (organization_id,user_id,role) values ($1,$2,'org_admin')", [orgA, B]));
-const cardNo = (await as("authenticated", C, "select public.next_card_number($1) n", [orgA])).rows[0].n;
+denied("staff cannot burn card numbers via the API", await as("authenticated", C, "select public.next_card_number($1)", [orgA]));
+denied("outsider cannot take card numbers of another org", await as("authenticated", B, "select public.next_card_number($1)", [orgA]));
+const cardNo = (await as("authenticated", A, "select public.next_card_number($1) n", [orgA])).rows[0].n;
 ok("card number format PREFIX-000001", cardNo === "ALPHA-000001", cardNo);
 const cc = await as("authenticated", C,
   "insert into public.id_cards (organization_id, member_id, card_number) values ($1,$2,$3) returning id", [orgA, memA, cardNo]);

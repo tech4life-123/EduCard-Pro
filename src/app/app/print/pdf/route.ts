@@ -32,10 +32,22 @@ export async function POST(req: Request) {
   // Same-origin only (cookies are SameSite=Lax, this is a second layer).
   const origin = req.headers.get("origin");
   const host = req.headers.get("host");
-  if (!origin || !host || new URL(origin).host !== host) return fail("Bad request.", 403);
+  let originHost: string | null = null;
+  try { originHost = origin ? new URL(origin).host : null; } catch { originHost = null; }
+  if (!originHost || !host || originHost !== host) return fail("Bad request.", 403);
 
   const { org, role } = await requireOrg();
   if (!hasRole(role, "org_admin")) return fail("Only admins can print cards.", 403);
+
+  // Rate limit: printing is expensive and rotates QR codes, so cap it per organization.
+  const since = new Date(Date.now() - 10 * 60_000).toISOString();
+  const { count: recentPrints } = await createAdminClient()
+    .from("audit_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", org.id)
+    .eq("action", "cards.printed")
+    .gte("created_at", since);
+  if ((recentPrints ?? 0) >= 20) return fail("Too many print runs in the last few minutes. Please wait and try again.", 429);
 
   const fd = await req.formData();
   const parsed = form.safeParse({
