@@ -22,7 +22,7 @@ await db.exec(`
   alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 `);
 
-for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql"]) {
+for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql", "20261005000005_starter_templates.sql"]) {
   try { await db.exec(readFileSync(MIG + f, "utf8")); console.log("migration ok:", f); }
   catch (e) { console.log("MIGRATION FAILED:", f, "\n", e.message); process.exit(1); }
 }
@@ -167,6 +167,21 @@ ok("A can see its photo", (await as("authenticated", A, "select count(*)::int n 
 denied("staff cannot replace org logo (admin only)", await as("authenticated", C,
   "insert into storage.objects (bucket_id, name) values ('org-assets', $1)", [`${orgA}/logo.png`]));
 ok("private buckets are not public", (await db.query("select count(*)::int n from storage.buckets where public and id <> 'template-assets'")).rows[0].n === 0);
+
+// ---- templates (Phase 4) ---------------------------------------------------------
+ok("5 starter templates are seeded", (await db.query("select count(*)::int n from public.card_templates where organization_id is null")).rows[0].n === 5);
+ok("staff can read global templates", (await as("authenticated", C, "select count(*)::int n from public.card_templates")).rows[0].n === 5);
+{ const r = await as("anon", null, "select count(*)::int n from public.card_templates"); ok("anonymous cannot read templates", !!r.error || r.rows[0].n === 0); }
+const gid = (await db.query("select id from public.card_templates where organization_id is null limit 1")).rows[0].id;
+ok("staff cannot edit a global template", (await as("authenticated", C, "update public.card_templates set name='x' where id=$1 returning id", [gid])).rows?.length === 0);
+ok("admin cannot edit a global template", (await as("authenticated", A, "update public.card_templates set name='x' where id=$1 returning id", [gid])).rows?.length === 0);
+denied("staff cannot create an org template", await as("authenticated", C,
+  "insert into public.card_templates (organization_id, slug, name, category) values ($1,'mine','Mine','school')", [orgA]));
+allowed("admin creates an org template", await as("authenticated", A,
+  "insert into public.card_templates (organization_id, slug, name, category) values ($1,'mine','Mine','school')", [orgA]));
+denied("admin cannot create a template in another org", await as("authenticated", A,
+  "insert into public.card_templates (organization_id, slug, name, category) values ($1,'evil','Evil','school')", [orgB]));
+ok("B cannot see A's org template", (await as("authenticated", B, "select count(*)::int n from public.card_templates where slug='mine'")).rows[0].n === 0);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

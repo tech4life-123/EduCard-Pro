@@ -9,6 +9,9 @@ import type { CustomFieldDef } from "@/lib/member-fields";
 import { MemberForm } from "../member-form";
 import { PhotoCapture } from "@/components/photo-capture";
 import { signedPhotoUrls } from "@/lib/photos";
+import { CardSide } from "@/components/card-svg";
+import { loadBranding, loadDefaultTemplateId, memberCardValues, TEMPLATE_COLUMNS } from "@/lib/templates/data";
+import type { TemplateRow } from "@/lib/templates/schema";
 
 export const metadata = { title: "Edit member · EduCard Pro" };
 
@@ -30,6 +33,13 @@ export default async function EditMemberPage({ params, searchParams }: PageProps
   if (!member) notFound();
 
   const photoUrl = member.photo_processed_path ? ((await signedPhotoUrls([member.photo_processed_path])).get(member.photo_processed_path) ?? null) : null;
+  const defaultTemplateId = await loadDefaultTemplateId(org.id);
+  let template: TemplateRow | null = null;
+  if (defaultTemplateId) {
+    const { data: t } = await supabase.from("card_templates").select(TEMPLATE_COLUMNS).eq("id", defaultTemplateId).maybeSingle();
+    template = (t as unknown as TemplateRow) ?? null;
+  }
+  const brand = await loadBranding(org.id);
   const archive = setMemberStatus.bind(null, member.id, "archived");
   const restore = setMemberStatus.bind(null, member.id, "active");
 
@@ -48,6 +58,30 @@ export default async function EditMemberPage({ params, searchParams }: PageProps
         </p>
       ) : null}
       <PhotoCapture orgId={org.id} memberId={member.id} currentUrl={photoUrl} name={member.full_name} />
+      <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-5">
+        <h2 className="font-semibold">Card preview</h2>
+        {template ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(["front", "back"] as const).map((side) => (
+              <div key={side} className="flex justify-center rounded-lg bg-slate-100 p-3">
+                <CardSide
+                  design={side === "front" ? template.front_design : template.back_design}
+                  widthMm={Number(template.width_mm)}
+                  heightMm={Number(template.height_mm)}
+                  data={{ values: memberCardValues(member as Record<string, unknown>, brand), photoUrl }}
+                  brand={brand}
+                  uid={`m-${side}`}
+                  className={template.orientation === "portrait" ? "h-64 w-auto drop-shadow" : "w-full max-w-[340px] drop-shadow"}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-600">
+            No default template yet. <Link href="/app/templates" className="underline">Choose one</Link> to see this member&apos;s card.
+          </p>
+        )}
+      </section>
       <MemberForm
         id={member.id}
         defs={(defs ?? []) as CustomFieldDef[]}

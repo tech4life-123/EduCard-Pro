@@ -10,7 +10,13 @@ export default async function ShellLayout({ children }: LayoutProps<"/app">) {
   const links = [
     { href: "/app", label: "Dashboard" },
     { href: "/app/members", label: "Members" },
-    ...(hasRole(role, "org_admin") ? [{ href: "/app/settings/fields", label: "Fields" }] : []),
+    { href: "/app/templates", label: "Templates" },
+    ...(hasRole(role, "org_admin")
+      ? [
+          { href: "/app/settings/fields", label: "Fields" },
+          { href: "/app/settings/branding", label: "Branding" },
+        ]
+      : []),
   ];
 
   return (
