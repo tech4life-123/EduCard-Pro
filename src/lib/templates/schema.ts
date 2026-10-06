@@ -108,7 +108,7 @@ export const elementSchema = z.discriminatedUnion("type", [
     strokeMm: z.number().min(0).max(2).optional(),
   }),
   z.object({ ...base, type: z.literal("qr"), x: mm, y: mm, size: z.number().min(10).max(40) }),
-  z.object({ ...base, type: z.literal("logo"), x: mm, y: mm, w: mm, h: mm }),
+  z.object({ ...base, type: z.literal("logo"), x: mm, y: mm, w: mm, h: mm, opacity: z.number().min(0).max(1).optional() }),
   z.object({
     ...base,
     type: z.literal("shape"),

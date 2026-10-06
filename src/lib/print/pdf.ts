@@ -209,9 +209,10 @@ function drawElement(page: PDFPage, ctx: Ctx, ox: number, oy: number, pageH: num
 
   if (el.type === "logo") {
     const x = X(el.x), y = Y(el.y + el.h), w = el.w * K, h = el.h * K;
+    if (!ctx.logo && el.opacity !== undefined && el.opacity < 0.5) return; // watermark without a logo: nothing to draw
     if (ctx.logo) {
       const s = Math.min(w / ctx.logo.width, h / ctx.logo.height);
-      page.drawImage(ctx.logo, { x: x + (w - ctx.logo.width * s) / 2, y: y + (h - ctx.logo.height * s) / 2, width: ctx.logo.width * s, height: ctx.logo.height * s });
+      page.drawImage(ctx.logo, { x: x + (w - ctx.logo.width * s) / 2, y: y + (h - ctx.logo.height * s) / 2, width: ctx.logo.width * s, height: ctx.logo.height * s, opacity: el.opacity });
     } else {
       page.drawSvgPath(roundedPath(w, h, Math.min(w, h) * 0.18), { x, y: y + h, color: rgb(1, 1, 1), borderColor: hex("$primary", b), borderWidth: 0.3 * K });
       const letter = clean(ctx.bold, (b.orgName.trim()[0] ?? "•").toUpperCase());

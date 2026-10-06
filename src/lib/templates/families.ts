@@ -7,7 +7,7 @@
 
 type El = Record<string, unknown>;
 export type Design = { background: unknown; elements: El[] };
-export type Recipe = { kind: "front" | "back"; family: string; cat: string; variant?: string };
+export type Recipe = { kind: "front" | "back"; family: string; cat: string; variant?: string; wm?: boolean };
 
 const W = 85.6, H = 53.98, PW = 53.98, PH = 85.6;
 const G = (from: string, to: string, angle = 90) => ({ type: "linear", from, to, angle });
@@ -314,6 +314,11 @@ function pDark(c: Cat): Design {
 // Campus ID: green-banner style used by many universities (banner with institution name, logo and
 // address line, photo left, name / level / program / ID# right, QR bottom right, corner swoosh).
 function campus(c: Cat): Design {
+  const edu = c.short === "STUDENT ID";
+  const level = edu ? "grade_level" : c.f[2].b;
+  const dept = edu ? "department" : c.f[1].b;
+  const idBinding = edu ? "student_number" : c.f[0].b;
+  const idLabel = edu ? "ID#" : c.f[0].l;
   return {
     background: "$paper",
     elements: [
@@ -323,9 +328,9 @@ function campus(c: Cat): Design {
       F("address", "org_contact", 44.5, 14.5, 37.5, 8, undefined, { fontPt: 5.4, weight: 400, color: "$muted", lines: 2 }),
       P(4, 15, 24, 31, { shape: "rounded", stroke: "$primary", strokeMm: 0.4 }),
       F("name", "full_name", 31, 24.6, 51, 6, undefined, { fontPt: 10, weight: 700 }),
-      F("level", "grade_level", 31, 31, 33, 5.5, undefined, { fontPt: 9, weight: 800, color: "$primary" }),
-      F("dept", "department", 31, 37, 33, 5, undefined, { fontPt: 7.5, weight: 600 }),
-      F("idno", "student_number", 31, 43.5, 34, 5, "ID#", { fontPt: 8, weight: 800, color: "$primary", inline: true }),
+      F("level", level, 31, 31, 33, 5.5, undefined, { fontPt: 9, weight: 800, color: "$primary" }),
+      F("dept", dept, 31, 37, 33, 5, undefined, { fontPt: 7.5, weight: 600 }),
+      F("idno", idBinding, 31, 43.5, 34, 5, idLabel, { fontPt: 8, weight: 800, color: "$primary", inline: true }),
       Q(66, 31.5, 16),
       T("qr_caption", 64, 47.8, 20, 3, "Scan to verify", { fontPt: 4.3, align: "middle", color: "$muted", weight: 600 }),
       S("swoosh", "poly", 0, 46, 24, 8, { points: [[0, 46], [24, 53.98], [0, 53.98]], fill: "$primary" }),
@@ -336,16 +341,20 @@ function campus(c: Cat): Design {
 }
 
 function backCampus(c: Cat): Design {
+  const edu = c.short === "STUDENT ID";
+  const text = edu
+    ? "The bearer of this ID card is a registered student of this institution. Please accord him/her due courtesies. If found, please deliver to the institution or the nearest police station."
+    : "The bearer of this card is a recognised member of the issuing organization. Please accord him/her due courtesies. If found, please return it to the organization or the nearest police station.";
   return {
     background: "$paper",
     elements: [
       T("title", 5, 4.5, 75.6, 7, c.subtitle, { fontPt: 12, weight: 800, color: "$primary", align: "middle", letterSpacing: 0.06 }),
       L(38.3, 12.5, 9, 9),
-      T("back_text", 5, 23, 75.6, 13, "The bearer of this ID card is a registered student of this institution. Please accord him/her due courtesies. If found, please deliver to the institution or the nearest police station.", { fontPt: 6.2, lines: 4, align: "middle", color: "$ink" }),
+      T("back_text", 5, 23, 75.6, 13, text, { fontPt: 6.2, lines: 4, align: "middle", color: "$ink" }),
       F("issued", "issue_date", 5, 38.5, 36, 4.5, "Date Issued", { fontPt: 6.5, weight: 800, inline: true }),
       F("expires", "expiry_date", 5, 43.5, 36, 4.5, "Date Expired", { fontPt: 6.5, weight: 800, inline: true }),
       S("sig_line", "line", 47, 44.5, 34, 0, { stroke: "$ink", strokeMm: 0.3 }),
-      T("sig_label", 47, 45.6, 34, 3, "Dean of Student Services", { fontPt: 5.5, weight: 600, align: "middle", color: "$ink" }),
+      T("sig_label", 47, 45.6, 34, 3, edu ? "Dean of Student Services" : "Authorized signature", { fontPt: 5.5, weight: 600, align: "middle", color: "$ink" }),
       S("strip", "rect", 0, 51.8, W, 2.18, { fill: G("$primary", "$primaryDark", 0) }),
     ],
   };
@@ -394,21 +403,35 @@ const FRONT: Record<string, (c: Cat, v: string) => Design> = {
   pCircle, pPlain: (c) => pPlain(c), pBand: (c) => pBand(c), pDark: (c) => pDark(c),
 };
 
+// Big faded logo behind the content (like many school IDs). Drawn first so everything sits on top.
+function withWatermark(d: Design, portrait: boolean): Design {
+  const size = portrait ? 46 : 40;
+  const wm: El = portrait
+    ? { id: "watermark", type: "logo", x: (PW - size) / 2, y: 30, w: size, h: size, opacity: 0.1 }
+    : { id: "watermark", type: "logo", x: 40, y: 12.5, w: size, h: size, opacity: 0.1 };
+  return { ...d, elements: [wm, ...d.elements] };
+}
+
 export function expandRecipe(raw: unknown): Design | null {
   const r = raw as Recipe | null;
   if (!r || typeof r !== "object") return null;
   const cat = CATEGORIES[r.cat];
   if (!cat) return null;
-  if (r.kind === "back" && r.variant === "campus") return backCampus(cat);
-  if (r.kind === "back") return back(r.variant ?? "std", r.family === "portrait");
-  const fn = FRONT[r.family];
-  return fn ? fn(cat, r.variant ?? "solid") : null;
+  const portrait = r.family === "portrait" || PORTRAIT.has(r.family);
+  let d: Design | null;
+  if (r.kind === "back") d = r.variant === "campus" ? backCampus(cat) : back(r.variant ?? "std", r.family === "portrait");
+  else {
+    const fn = FRONT[r.family];
+    d = fn ? fn(cat, r.variant ?? "solid") : null;
+  }
+  if (d && r.wm) d = withWatermark(d, portrait);
+  return d;
 }
 
 // ---------------------------------------------------------------------------------------------
 // Catalog (what gets seeded). front/back are [family, variant].
 // ---------------------------------------------------------------------------------------------
-export type CatalogEntry = { slug: string; name: string; category: string; orientation: "landscape" | "portrait"; front: [string, string]; back: string; tag: string };
+export type CatalogEntry = { slug: string; name: string; category: string; orientation: "landscape" | "portrait"; front: [string, string]; back: string; tag: string; wm?: boolean };
 const PORTRAIT = new Set(["pCircle", "pPlain", "pBand", "pDark"]);
 const plan: Record<string, Array<[string, string, string, string, string]>> = {
   // [key, family, variant, back variant, label]
@@ -424,14 +447,26 @@ const plan: Record<string, Array<[string, string, string, string, string]>> = {
   event: [["dark", "dark", "x", "dark", "Dark Gradient"], ["diagonal", "diagonal", "x", "std", "Diagonal Stripe"], ["plain", "plainLeft", "x", "plain", "Plain (no background)"], ["gradient-banner", "banner", "gradient", "gradient", "Gradient Banner"], ["portrait-band", "pBand", "x", "gradient", "Portrait Band"]],
 };
 
-export const CATALOG: CatalogEntry[] = Object.entries(plan).flatMap(([cat, rows]) =>
-  rows.map(([key, family, variant, backVariant, label]) => ({
-    slug: `${cat}-${key}`,
-    name: `${CATEGORIES[cat].name} ${label}`,
-    category: cat,
-    orientation: (PORTRAIT.has(family) ? "portrait" : "landscape") as "landscape" | "portrait",
-    front: [family, variant] as [string, string],
-    back: backVariant,
-    tag: label.includes("Plain") ? "plain" : variant === "gradient" || variant === "g" || backVariant === "gradient" || backVariant === "dark" ? "gradient" : "solid",
-  })),
-);
+// Logo styles: logo at the top-left plus a big faded copy of the logo behind the content.
+const wmPlan: Array<[string, string, string, string, string]> = [
+  ["wm-campus", "campus", "x", "campus", "Logo Watermark Campus"],
+  ["wm-banner", "banner", "solid", "std", "Logo Watermark Banner"],
+  ["wm-gradient", "banner", "gradient", "gradient", "Logo Watermark Gradient"],
+  ["wm-plain", "plainLeft", "x", "plain", "Logo Watermark Plain (no background)"],
+];
+
+const toEntry = (cat: string, wm: boolean) => ([key, family, variant, backVariant, label]: [string, string, string, string, string]): CatalogEntry => ({
+  slug: `${cat}-${key}`,
+  name: `${CATEGORIES[cat].name} ${label}`,
+  category: cat,
+  orientation: (PORTRAIT.has(family) ? "portrait" : "landscape") as "landscape" | "portrait",
+  front: [family, variant] as [string, string],
+  back: backVariant,
+  wm,
+  tag: label.includes("Plain") ? "plain" : variant === "gradient" || variant === "g" || backVariant === "gradient" || backVariant === "dark" ? "gradient" : "solid",
+});
+
+export const CATALOG: CatalogEntry[] = [
+  ...Object.entries(plan).flatMap(([cat, rows]) => rows.map(toEntry(cat, false))),
+  ...Object.keys(CATEGORIES).flatMap((cat) => wmPlan.map(toEntry(cat, true))),
+];

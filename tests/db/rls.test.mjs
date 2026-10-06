@@ -22,7 +22,7 @@ await db.exec(`
   alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 `);
 
-for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql", "20261005000005_starter_templates.sql", "20261005000006_batch_record_guard.sql", "20261005000007_verify_expiry.sql", "20261005000008_template_catalog.sql", "20261005000009_security_hardening.sql", "20261005000010_campus_templates.sql"]) {
+for (const f of ["20261004000001_core_schema.sql", "20261004000002_rls_and_functions.sql", "20261004000003_storage.sql", "20261004000004_lock_trigger_functions.sql", "20261005000005_starter_templates.sql", "20261005000006_batch_record_guard.sql", "20261005000007_verify_expiry.sql", "20261005000008_template_catalog.sql", "20261005000009_security_hardening.sql", "20261005000010_campus_templates.sql", "20261005000011_logo_watermark_templates.sql"]) {
   try { await db.exec(readFileSync(MIG + f, "utf8")); console.log("migration ok:", f); }
   catch (e) { console.log("MIGRATION FAILED:", f, "\n", e.message); process.exit(1); }
 }
@@ -171,10 +171,10 @@ denied("staff cannot replace org logo (admin only)", await as("authenticated", C
 ok("private buckets are not public", (await db.query("select count(*)::int n from storage.buckets where public and id <> 'template-assets'")).rows[0].n === 0);
 
 // ---- templates (Phase 4) ---------------------------------------------------------
-ok("58 global templates are seeded (5 starters + 53 catalog)", (await db.query("select count(*)::int n from public.card_templates where organization_id is null")).rows[0].n === 58);
-ok("staff can read global templates", (await as("authenticated", C, "select count(*)::int n from public.card_templates")).rows[0].n === 58);
+ok("98 global templates are seeded (5 starters + 53 catalog + 40 logo watermark)", (await db.query("select count(*)::int n from public.card_templates where organization_id is null")).rows[0].n === 98);
+ok("staff can read global templates", (await as("authenticated", C, "select count(*)::int n from public.card_templates")).rows[0].n === 98);
 { const r = await as("anon", null, "select count(*)::int n from public.card_templates"); ok("anonymous cannot read templates", !!r.error || r.rows[0].n === 0); }
-ok("catalog slugs are unique and recipes are stored", (await db.query("select count(*)::int n from public.card_templates where organization_id is null and front_design ? 'recipe'")).rows[0].n === 53);
+ok("catalog slugs are unique and recipes are stored", (await db.query("select count(*)::int n from public.card_templates where organization_id is null and front_design ? 'recipe'")).rows[0].n === 93);
 const gid = (await db.query("select id from public.card_templates where organization_id is null limit 1")).rows[0].id;
 ok("staff cannot edit a global template", (await as("authenticated", C, "update public.card_templates set name='x' where id=$1 returning id", [gid])).rows?.length === 0);
 ok("admin cannot edit a global template", (await as("authenticated", A, "update public.card_templates set name='x' where id=$1 returning id", [gid])).rows?.length === 0);

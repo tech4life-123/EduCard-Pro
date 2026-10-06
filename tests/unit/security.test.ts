@@ -45,8 +45,8 @@ test("CSV formula injection is neutralised", () => {
 test("every catalog template expands to a valid design with a QR on one side", () => {
   assert.ok(CATALOG.length >= 51);
   for (const t of CATALOG) {
-    const front = parseDesign({ recipe: { kind: "front", family: t.front[0], cat: t.category, variant: t.front[1] } });
-    const back = parseDesign({ recipe: { kind: "back", family: t.orientation === "portrait" ? "portrait" : "landscape", cat: t.category, variant: t.back } });
+    const front = parseDesign({ recipe: { kind: "front", family: t.front[0], cat: t.category, variant: t.front[1], wm: t.wm } });
+    const back = parseDesign({ recipe: { kind: "back", family: t.orientation === "portrait" ? "portrait" : "landscape", cat: t.category, variant: t.back, wm: t.wm } });
     assert.ok(front.elements.some((e) => e.type === "photo"), t.slug + " front needs a photo");
     assert.ok([...front.elements, ...back.elements].some((e) => e.type === "qr"), t.slug + " needs a QR on one side");
   }

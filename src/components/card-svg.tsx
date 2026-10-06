@@ -176,8 +176,10 @@ function Element({ el, data, brand, uid }: { el: CardElement; data: CardData; br
   }
 
   if (el.type === "logo") {
+    // A faded logo is a watermark: with no logo uploaded there is nothing to fade, so draw nothing.
+    if (!brand.logoUrl && el.opacity !== undefined && el.opacity < 0.5) return null;
     return brand.logoUrl ? (
-      <image href={brand.logoUrl} x={el.x} y={el.y} width={el.w} height={el.h} preserveAspectRatio="xMidYMid meet" />
+      <image href={brand.logoUrl} x={el.x} y={el.y} width={el.w} height={el.h} opacity={el.opacity} preserveAspectRatio="xMidYMid meet" />
     ) : (
       <g opacity={0.9}>
         <rect x={el.x} y={el.y} width={el.w} height={el.h} rx={Math.min(el.w, el.h) * 0.18} fill="#ffffff" stroke={brand.primary} strokeWidth={0.3} />
