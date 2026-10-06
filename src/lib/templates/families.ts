@@ -310,6 +310,47 @@ function pDark(c: Cat): Design {
 // ---------------------------------------------------------------------------------------------
 // Backs
 // ---------------------------------------------------------------------------------------------
+
+// Campus ID: green-banner style used by many universities (banner with institution name, logo and
+// address line, photo left, name / level / program / ID# right, QR bottom right, corner swoosh).
+function campus(c: Cat): Design {
+  return {
+    background: "$paper",
+    elements: [
+      S("header", "rect", 0, 0, W, 11.5, { fill: G("$primary", "$primaryDark", 0) }),
+      F("org", "org_name", 4, 3.4, 77.6, 5, undefined, { fontPt: 8.5, weight: 800, color: "$paper", uppercase: true, letterSpacing: 0.04 }),
+      L(31, 13.6, 9, 9),
+      F("address", "org_contact", 41.5, 14, 40.5, 8, undefined, { fontPt: 5.4, weight: 400, color: "$muted", lines: 2 }),
+      P(4, 15, 24, 31, { shape: "rounded", stroke: "$primary", strokeMm: 0.4 }),
+      F("name", "full_name", 31, 24.6, 51, 6, undefined, { fontPt: 10, weight: 700 }),
+      F("level", "grade_level", 31, 31, 33, 5.5, undefined, { fontPt: 9, weight: 800, color: "$primary" }),
+      F("dept", "department", 31, 37, 33, 5, undefined, { fontPt: 7.5, weight: 600 }),
+      F("idno", "student_number", 31, 43.5, 34, 5, "ID#", { fontPt: 8, weight: 800, color: "$primary", inline: true }),
+      Q(66, 31.5, 16),
+      T("qr_caption", 64, 47.8, 20, 3, "Scan to verify", { fontPt: 4.3, align: "middle", color: "$muted", weight: 600 }),
+      S("swoosh", "poly", 0, 46, 24, 8, { points: [[0, 46], [24, 53.98], [0, 53.98]], fill: "$primary" }),
+      S("swoosh2", "poly", 0, 49, 40, 5, { points: [[0, 49.5], [40, 53.98], [0, 53.98]], fill: G("$secondary", "$secondaryDark", 0), opacity: 0.9 }),
+      S("strip", "rect", 40, 52.2, W - 40, 1.78, { fill: "$primary" }),
+    ],
+  };
+}
+
+function backCampus(c: Cat): Design {
+  return {
+    background: "$paper",
+    elements: [
+      T("title", 5, 4.5, 75.6, 7, c.subtitle, { fontPt: 12, weight: 800, color: "$primary", align: "middle", letterSpacing: 0.06 }),
+      L(38.3, 12.5, 9, 9),
+      T("back_text", 5, 23, 75.6, 13, "The bearer of this ID card is a registered student of this institution. Please accord him/her due courtesies. If found, please deliver to the institution or the nearest police station.", { fontPt: 6.2, lines: 4, align: "middle", color: "$ink" }),
+      F("issued", "issue_date", 5, 38.5, 36, 4.5, "Date Issued", { fontPt: 6.5, weight: 800, inline: true }),
+      F("expires", "expiry_date", 5, 43.5, 36, 4.5, "Date Expired", { fontPt: 6.5, weight: 800, inline: true }),
+      S("sig_line", "line", 47, 44.5, 34, 0, { stroke: "$ink", strokeMm: 0.3 }),
+      T("sig_label", 47, 45.6, 34, 3, "Dean of Student Services", { fontPt: 5.5, weight: 600, align: "middle", color: "$ink" }),
+      S("strip", "rect", 0, 51.8, W, 2.18, { fill: G("$primary", "$primaryDark", 0) }),
+    ],
+  };
+}
+
 function back(variant: string, portrait: boolean): Design {
   const w = portrait ? PW : W;
   const dark = variant === "dark";
@@ -349,6 +390,7 @@ function back(variant: string, portrait: boolean): Design {
 const FRONT: Record<string, (c: Cat, v: string) => Design> = {
   banner, plainRight: (c) => plainRight(c), plainLeft: (c) => plainLeft(c), sidebar, blobs,
   split: (c) => split(c), hero: (c) => hero(c), diagonal: (c) => diagonal(c), dark: (c) => dark(c), heritage: (c) => heritage(c),
+  campus: (c) => campus(c),
   pCircle, pPlain: (c) => pPlain(c), pBand: (c) => pBand(c), pDark: (c) => pDark(c),
 };
 
@@ -357,6 +399,7 @@ export function expandRecipe(raw: unknown): Design | null {
   if (!r || typeof r !== "object") return null;
   const cat = CATEGORIES[r.cat];
   if (!cat) return null;
+  if (r.kind === "back" && r.variant === "campus") return backCampus(cat);
   if (r.kind === "back") return back(r.variant ?? "std", r.family === "portrait");
   const fn = FRONT[r.family];
   return fn ? fn(cat, r.variant ?? "solid") : null;
@@ -369,8 +412,8 @@ export type CatalogEntry = { slug: string; name: string; category: string; orien
 const PORTRAIT = new Set(["pCircle", "pPlain", "pBand", "pDark"]);
 const plan: Record<string, Array<[string, string, string, string, string]>> = {
   // [key, family, variant, back variant, label]
-  school: [["banner", "banner", "solid", "std", "Banner"], ["gradient-hero", "hero", "g", "gradient", "Gradient Hero"], ["plain", "plainRight", "x", "plain", "Plain (no background)"], ["split", "split", "x", "gradient", "Split Panel"], ["portrait-gradient", "pCircle", "gradient", "gradient", "Portrait Gradient"]],
-  university: [["heritage", "heritage", "x", "heritage", "Heritage"], ["gradient-banner", "banner", "gradient", "gradient", "Gradient Banner"], ["plain", "plainLeft", "x", "plain", "Plain (no background)"], ["dark", "dark", "x", "dark", "Dark Gradient"], ["portrait-plain", "pPlain", "x", "plain", "Portrait Plain"]],
+  school: [["campus", "campus", "x", "campus", "Campus ID (banner, logo, QR)"], ["banner", "banner", "solid", "std", "Banner"], ["gradient-hero", "hero", "g", "gradient", "Gradient Hero"], ["plain", "plainRight", "x", "plain", "Plain (no background)"], ["split", "split", "x", "gradient", "Split Panel"], ["portrait-gradient", "pCircle", "gradient", "gradient", "Portrait Gradient"]],
+  university: [["campus", "campus", "x", "campus", "Campus ID (banner, logo, QR)"], ["heritage", "heritage", "x", "heritage", "Heritage"], ["gradient-banner", "banner", "gradient", "gradient", "Gradient Banner"], ["plain", "plainLeft", "x", "plain", "Plain (no background)"], ["dark", "dark", "x", "dark", "Dark Gradient"], ["portrait-plain", "pPlain", "x", "plain", "Portrait Plain"]],
   church: [["sidebar", "sidebar", "solid", "std", "Sidebar"], ["heritage", "heritage", "x", "heritage", "Heritage"], ["plain", "plainRight", "x", "plain", "Plain (no background)"], ["gradient-sidebar", "sidebar", "gradient", "gradient", "Gradient Sidebar"], ["portrait-band", "pBand", "x", "gradient", "Portrait Band"]],
   community: [["heritage-gold", "heritage", "x", "heritage", "Heritage Gold & Navy"], ["blobs", "blobs", "solid", "std", "Colour Circles"], ["diagonal", "diagonal", "x", "std", "Diagonal Stripe"], ["plain", "plainLeft", "x", "plain", "Plain (no background)"], ["portrait-circle", "pCircle", "solid", "std", "Portrait Circle"], ["gradient-hero", "hero", "g", "gradient", "Gradient Hero"]],
   business: [["gradient-hero", "hero", "g", "gradient", "Gradient Hero"], ["banner", "banner", "solid", "std", "Banner"], ["plain", "plainRight", "x", "plain", "Plain (no background)"], ["dark", "dark", "x", "dark", "Dark Gradient"], ["portrait-dark", "pDark", "x", "dark", "Portrait Dark"]],
