@@ -319,8 +319,8 @@ function campus(c: Cat): Design {
     elements: [
       S("header", "rect", 0, 0, W, 11.5, { fill: G("$primary", "$primaryDark", 0) }),
       F("org", "org_name", 4, 3.4, 77.6, 5, undefined, { fontPt: 8.5, weight: 800, color: "$paper", uppercase: true, letterSpacing: 0.04 }),
-      L(31, 13.6, 9, 9),
-      F("address", "org_contact", 41.5, 14, 40.5, 8, undefined, { fontPt: 5.4, weight: 400, color: "$muted", lines: 2 }),
+      L(31, 12.8, 11, 11),
+      F("address", "org_contact", 44.5, 14.5, 37.5, 8, undefined, { fontPt: 5.4, weight: 400, color: "$muted", lines: 2 }),
       P(4, 15, 24, 31, { shape: "rounded", stroke: "$primary", strokeMm: 0.4 }),
       F("name", "full_name", 31, 24.6, 51, 6, undefined, { fontPt: 10, weight: 700 }),
       F("level", "grade_level", 31, 31, 33, 5.5, undefined, { fontPt: 9, weight: 800, color: "$primary" }),
